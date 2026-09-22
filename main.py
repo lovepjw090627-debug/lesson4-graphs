@@ -37,6 +37,22 @@ def load_data():
 
 df = load_data()
 
+
+@st.cache_data(ttl=3600)  # 1시간 동안 같은 데이터를 다시 안 불러오고 기억해 둡니다.
+def load_daily_data():
+    """
+    영화 데이터 그래프 도감 1(시간)에서 쓴 것과 같은, 365일치 일별 박스오피스 데이터를 불러옵니다.
+    이 데이터에는 영화별로 10위권에 든 '모든 날짜'가 담겨 있어서,
+    그 영화가 10위권에 처음/마지막으로 든 날짜를 알아내는 데 씁니다.
+    """
+    DAILY_DATA_URL = "https://raw.githubusercontent.com/greatsong/modudata/main/data/kobis_daily.csv"
+    daily = pd.read_csv(DAILY_DATA_URL)
+    daily["날짜"] = pd.to_datetime(daily["날짜"], format="%Y%m%d")
+    return daily
+
+
+daily_df = load_daily_data()
+
 st.title("📊 영화 데이터 그래프 도감 2 - 분포와 관계")
 st.caption("이 기간에 개봉한 216편의 요약 데이터로 그리는 '분포와 관계' 그래프 모음집이에요.")
 
@@ -266,11 +282,53 @@ st.info("💡 **이 그래프로 알 수 있는 것:** (여기에 이 그래프�
 st.divider()
 
 # ══════════════════════════════════════════════
-# 섹션 9. (다음 '분포와 관계' 그래프는 여기에 추가하세요)
+# 섹션 9. 이 영화가 개봉 후 10위권에서 완전히 밀려날 때까지 총 며칠이 걸렸는가
+# ══════════════════════════════════════════════
+st.header("9. 이 영화가 개봉 후 10위권에서 완전히 밀려날 때까지 총 며칠이 걸렸는가")
+
+# 365일 일별 데이터에서, 영화코드별로 10위권에 처음 든 날짜와 마지막으로 든 날짜를 찾습니다.
+span_df = (
+    daily_df.groupby("영화코드")["날짜"]
+    .agg(첫등장일="min", 마지막등장일="max")
+    .reset_index()
+)
+
+# 첫 등장일부터 마지막 등장일까지, 양 끝 날짜를 포함해서 총 며칠이 걸렸는지 구합니다.
+span_df["소요일수"] = (span_df["마지막등장일"] - span_df["첫등장일"]).dt.days + 1
+
+# 요약표(df)의 total_audi·movieNm과 영화코드(movieCd) 기준으로 합칩니다.
+span_merged = span_df.merge(
+    df[["movieCd", "movieNm", "total_audi"]],
+    left_on="영화코드",
+    right_on="movieCd",
+    how="inner",
+)
+
+fig9 = px.scatter(
+    span_merged,
+    x="소요일수",
+    y="total_audi",
+    hover_name="movieNm",  # 마우스를 올리면 영화명이 맨 위에 굵게 보입니다.
+    title="이 영화가 개봉 후 10위권에서 완전히 밀려날 때까지 총 며칠이 걸렸는가",
+    labels={"소요일수": "10위권 첫~마지막 등장까지 걸린 날수(일)", "total_audi": "총 관객수(명)"},
+)
+
+fig9.update_traces(
+    hovertemplate="<b>%{hovertext}</b><br>10위권 체류 기간: %{x}일<br>총 관객: %{y:,}명<extra></extra>"
+)
+
+st.plotly_chart(fig9, use_container_width=True, key="fig9_span_vs_audi_scatter")
+
+st.info("💡 **이 그래프로 알 수 있는 것:** (여기에 이 그래프에서 읽을 수 있는 한 문장을 적어주세요)")
+
+st.divider()
+
+# ══════════════════════════════════════════════
+# 섹션 10. (다음 '분포와 관계' 그래프는 여기에 추가하세요)
 # ══════════════════════════════════════════════
 # 예시:
-# st.header("9. ...")
-# fig9 = px.scatter(...)
-# st.plotly_chart(fig9, use_container_width=True, key="fig9_...")
+# st.header("10. ...")
+# fig10 = px.scatter(...)
+# st.plotly_chart(fig10, use_container_width=True, key="fig10_...")
 # st.info("💡 **이 그래프로 알 수 있는 것:** ...")
 # st.divider()
